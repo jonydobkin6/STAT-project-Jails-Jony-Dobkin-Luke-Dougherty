@@ -1,0 +1,117 @@
+---
+title: "Project Part 1, Luke Dougherty and Jony Dobkin" 
+fontsize: 12pt
+geometry: margin=1in
+urlcolor: black
+output: pdf_document
+header-includes:
+- \usepackage{setspace}
+- \onehalfspacing
+---
+## Jail Dataset After Modifications
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, highlight=FALSE)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+## Use this chunk for reading in packages.
+## Use this chunk for reading in the data, combining the data, and any other major data cleaning that is not relevant to show.
+## Remove the ## before all code.
+library(tidyverse)
+jail_dataset <- read.delim("~/39202-0001-Data.tsv")
+
+#creating a subset of the data with only the variables we care about
+jail_datasetb <- jail_dataset[, c("NAME", "TOTPOP", "RATED", "STATE")]
+
+#dividing the jails based on US census regions
+jail_datasetb$region <- ifelse(jail_dataset$STATE %in% c(7,20,21,30,40,46,47,49,51), "Northeast",
+                              ifelse(jail_dataset$STATE %in% c(14,15,23,32,48,16,17,24,26,27,34,42), "Midwest",
+                                     ifelse(jail_dataset$STATE %in% c(1,3,4,9,10,11,12,13,18,19,25,28,29,31,33,37,41,45), "South",
+                                            ifelse(jail_dataset$STATE %in% c(2,5,6,8,22,35,36,38,39,43,44,50), "West", NA))))
+
+#dividing the jails into 3 size groupings based on quantiles.  Also creating a factor so they show up in order.
+jail_datasetb$jail_size <- ifelse(jail_dataset$RATED <= quantile(jail_dataset$RATED, 1/3, na.rm=TRUE), "Small",
+                                 ifelse(jail_dataset$RATED <= quantile(jail_dataset$RATED, 2/3, na.rm=TRUE), "Medium", "Large"))
+jail_datasetb$jail_size <- factor(jail_datasetb$jail_size,
+                                  levels = c("Small", "Medium", "Large"),
+                                  ordered = TRUE)
+
+#Creating the crowding rate variable and removing one variable that showed extreme crowding at over 600% (not possible)
+jail_datasetb$crowding_rate <- round((jail_datasetb$TOTPOP /jail_datasetb$RATED)*100,2)
+jail_datasetb <- jail_datasetb[-560, ]
+head(jail_datasetb)
+```
+
+
+## Introduction
+Jail overcrowding has become one of the most pressing challenges in the United States today. When a jail's population exceeds its rated capacity, facilities face greater risks of violence, limited access to medical care, and increased strain on staff. Understanding where jail overcrowding is worst is important for policymakers trying to address these issues. This project examines whether certain regions experience higher overcrowding rates than others and whether smaller facilities are more likely to operate above capacity than larger ones. By analyzing these factors, we can better identify where the jail system is under the most pressure and focus attention on those areas.
+
+## Data Summary
+This project's dataset comes from the 2023 Annual Survey of Jails (ASJ), published by the U.S. Bureau of Justice Statistics (BJS), which collects records directly from county and municipal jail facilities across the United States. Rather than a full census, the ASJ uses a stratified probability sampling design to select about 950 jails representing the approximately 2,850 jails nationwide. Facilities are grouped into ten strata based on inmate population and the presence of juveniles, then randomly selected from those strata (two strata ended up having all of their jails selected). BJS collects this data annually to monitor jail operations, assess crowding, and inform policymakers about trends in local corrections.
+
+Several modifications were made after loading the data. First, we subsetted for only the most important variables, facility name, state, total population, and rated capacity,  which made the data easier to work with, given the original 150 columns. We then created our dependent variable, a crowding rate, by dividing the total population by rated capacity and multiplying by 100. Next, we created two independent variables: region, categorizing jails into four groups (Northeast, South, Midwest, and West), and size (Small, Medium, Large) based on rated capacity. Finally, we removed extreme outliers to eliminate likely data entry errors. One row, for example, showed a 600% crowding rate, which subsequent research confirmed was erroneous.
+
+There are several potential issues with the data and our modifications. While large jails hold the majority of the inmate population, most jail jurisdictions in the United States are small or rural facilities. Because the ASJ samples only a fraction of these smaller jurisdictions while including all large ones, findings for "Small" and "Medium" facilities may be less precise than those for "Large" facilities. Additionally, rated capacity is not standardized across the country, and facilities may define it differently, which could make comparisons across groups less accurate. Finally, jails with missing capacity values were excluded from crowding rate calculations, which could introduce bias if missingness correlates with facility size or region.
+
+Despite these limitations, we believe this dataset is appropriate for the research question. It covers a broad, nationally representative sample of jail facilities, and its population and capacity measures are the most consistent available, making it well-suited for regional and size-based comparisons even if imperfect.
+
+
+## Exploratory Data Analysis
+
+```{r, echo=FALSE}
+#Boxplots of the different census regions
+ggplot(jail_datasetb, aes(x = region, y = crowding_rate, fill = region)) +
+  geom_boxplot(alpha = 0.7, show.legend = FALSE) +
+  coord_cartesian(ylim = c(0, 200)) +
+  theme_minimal() +
+  labs(title = "Distribution of Jail Crowding Rates by Region",
+    subtitle = "Y-axis limited to 0-200 for visibility",
+    x = "Region",
+    y = "Crowding Rate")
+
+#Boxplots of the different jail sizes 
+ggplot(jail_datasetb, aes(x = jail_size, y = crowding_rate, fill = jail_size)) +
+  geom_boxplot(alpha = 0.7, show.legend = FALSE) +
+  coord_cartesian(ylim = c(0, 200)) +
+  theme_minimal() +labs(
+    title = "Distribution of Jail Crowding Rates by Jail Size",
+    subtitle = "Jail size based on capacity quantiles",
+    x = "Jail Size",
+    y = "Crowding Rate")
+
+
+#Means by region
+avg_crowding_by_region <- jail_datasetb %>%
+  group_by(region) %>%
+  summarise(avg_crowding_rate = round(mean(crowding_rate, na.rm = TRUE), 2))
+avg_crowding_by_region
+
+#Means by Jail size
+avg_crowding_by_size <- jail_datasetb %>%
+  group_by(jail_size) %>%
+  summarise(avg_crowding_rate = round(mean(crowding_rate, na.rm = TRUE), 2))
+avg_crowding_by_size
+```
+
+```{r}
+
+```
+
+## Conclusions
+
+There were many interesting conclusions to draw from the data. Southern jails have the highest average crowding rate at 86.8%, followed by the Northeast at 84.4%, the West at 77.7%, and the Midwest at 74.3%, marking a 12-point gap between the highest and lowest regions. The boxplots also reveal differences in spread and shape across regions. The Midwest displays the most compact range, with the middle 50% of facilities clustered around the median, suggesting that most Midwestern jails operate at moderate occupancy with limited variation. The Northeast, by contrast, shows the widest interquartile range of any region, indicating the most variability in crowding. The South and West fall in between, though both show numerous high outliers, with several facilities operating above 150% of rated capacity. The presence of extremely high-end outliers in almost every region confirms that dangerously overcrowded jails are not isolated to any one part of the country, though they appear most frequently in the South.
+
+Differences by facility size are more modest. Small jails average 82.6% capacity, Medium jails 81.8%, and Large jails 79.0%. Small jails display the widest overall range, with the lower whisker extending near zero and outliers reaching well above 150%. This makes sense given how quickly they can fill up. Medium jails show a similar but slightly narrower pattern, while Large jails have the most compact distribution, with a tighter interquartile range and fewer extreme outliers. This suggests larger facilities tend to operate at more consistent occupancy levels, with less dramatic swings in either direction.
+
+Overall, these findings show that geography is more strongly associated with crowding than facility size, though both variables reveal important distributional differences worth examining. No region or size category is immune to extreme overcrowding; high outliers appear universally, but the South has both the most outliers and the highest average crowding rate, making it the clearest target for reform.
+
+
+\newpage
+## References
+
+Data Source: Bureau of Justice Statistics. (2023). Annual Survey of Jails, 2023 (ICPSR 39202) [Data set]. Inter-university
+Consortium for Political and Social Research. https://doi.org/10.3886/ICPSR39202.v1
+
+write.csv(jail_datasetb, "~/Downloads/jail_datasetfinal.csv", row.names = FALSE)
+
